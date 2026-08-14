@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -33,22 +32,17 @@ fun ScreenHome(
     onArticleClick: (String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    // Tablets and foldables typically have screenWidthDp >= 600dp (Medium/Expanded)
     val isTablet = configuration.screenWidthDp >= 600
 
     var currentTab by rememberSaveable { mutableStateOf(BottomTab.News) }
     var selectedArticleUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (isTablet) {
-        // ==========================================
-        // TABLET TWO-PANE LAYOUT
-        // ==========================================
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            // Side Navigation Rail
             NavigationRail(
                 modifier = Modifier.fillMaxHeight(),
                 containerColor = MaterialTheme.colorScheme.surface
@@ -72,7 +66,6 @@ fun ScreenHome(
 
             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-            // Left Pane: News List or Bookmarks List (40% width)
             Box(
                 modifier = Modifier
                     .weight(0.42f)
@@ -84,23 +77,14 @@ fun ScreenHome(
                     label = "TabletListTransition"
                 ) { tab ->
                     when (tab) {
-                        BottomTab.News -> ScreenNewsList(
-                            onArticleClick = { url ->
-                                selectedArticleUrl = url
-                            }
-                        )
-                        BottomTab.Bookmarks -> ScreenBookmarks(
-                            onArticleClick = { url ->
-                                selectedArticleUrl = url
-                            }
-                        )
+                        BottomTab.News -> ScreenNewsList(onArticleClick = { selectedArticleUrl = it })
+                        BottomTab.Bookmarks -> ScreenBookmarks(onArticleClick = { selectedArticleUrl = it })
                     }
                 }
             }
 
             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-            // Right Pane: Detail Content / WebView (58% width)
             Box(
                 modifier = Modifier
                     .weight(0.58f)
@@ -113,9 +97,6 @@ fun ScreenHome(
             }
         }
     } else {
-        // ==========================================
-        // PHONE SINGLE-PANE LAYOUT
-        // ==========================================
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {

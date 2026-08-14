@@ -35,7 +35,6 @@ fun ArticleDetailPane(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Reactively observe article from local Room database if available
     val article by produceState<Article?>(initialValue = null, key1 = articleUrl) {
         if (articleUrl.isNullOrBlank()) {
             value = null
@@ -44,8 +43,8 @@ fun ArticleDetailPane(
                 value = it ?: Article(
                     title = "Article Preview",
                     description = null,
-                    content = null,         // or "" if Non-Nullable String
-                    category = "general",   // or ""
+                    content = null,
+                    category = "general",
                     url = articleUrl,
                     urlToImage = null,
                     publishedAt = "",
@@ -57,7 +56,6 @@ fun ArticleDetailPane(
     }
 
     if (articleUrl.isNullOrBlank()) {
-        // Placeholder when no article is selected
         Box(
             modifier = modifier
                 .fillMaxSize()

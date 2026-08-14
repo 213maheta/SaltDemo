@@ -31,6 +31,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "NEWS_API_KEY",
+            "\"${localProperties.getProperty("NEWS_API_KEY", "")}\""
+        )
     }
 
     buildTypes {
@@ -48,14 +54,11 @@ android {
         compose = true
         buildConfig = true
     }
+}
 
-    defaultConfig {
-        buildConfigField(
-            "String",
-            "NEWS_API_KEY",
-            "\"${localProperties.getProperty("NEWS_API_KEY", "")}\""
-        )
-    }
+// Configures Room schema location for schema versioning
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -67,6 +70,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    // Android / UI Unit Testing
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -75,30 +80,50 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    // ============================================================
+    // UNIT TESTING & COROUTINES / FLOW SUITE (Added)
+    // ============================================================
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+    testImplementation("app.cash.turbine:turbine:1.2.0")
+    testImplementation("io.mockk:mockk:1.13.16")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+
     // Koin
     implementation("io.insert-koin:koin-android:4.2.2")
     implementation("io.insert-koin:koin-androidx-compose:4.2.2")
 
     // Retrofit + OkHttp
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")  // ← this one
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation("com.squareup.okhttp3:logging-interceptor:5.4.0")
 
+    // Room Database
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
 
-    //navigation + viewmodel
+    // Navigation + ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("androidx.navigation:navigation-compose:2.9.2")
 
-    //image
+    // Image Loading
     implementation("io.coil-kt.coil3:coil-compose:3.5.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
 
-    //icon
+    // Icons
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // WorkManager (Background Sync)
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("io.insert-koin:koin-androidx-workmanager:4.2.2")
+
+    // Unit Testing Suite
+    testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+    testImplementation("app.cash.turbine:turbine:1.2.0")
+    testImplementation("io.mockk:mockk:1.13.16")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

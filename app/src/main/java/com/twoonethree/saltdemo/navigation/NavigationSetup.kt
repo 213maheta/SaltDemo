@@ -6,9 +6,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavController
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navOptions
 import com.twoonethree.saltdemo.screens.ScreenBookmarks
 import com.twoonethree.saltdemo.screens.ScreenHome
 import com.twoonethree.saltdemo.screens.ScreenNewsDetail
@@ -19,7 +23,7 @@ fun NavigationSetup()
 {
     val navController = rememberNavController()
 
-    val onBackClick = remember { { navController.popBackStack() } }
+    val onBackClick = remember { { navController.safePopBackStack() } }
 
     NavHost(
         navController = navController,
@@ -52,21 +56,21 @@ fun NavigationSetup()
         composable<ScreenNavRoute.Home> {
             ScreenHome(
                 onArticleClick = { articleUrl ->
-                    navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
+                    navController.safeNavigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
                 }
             )
         }
 
         composable<ScreenNavRoute.NewsDetail> {
             ScreenNewsDetail(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.safePopBackStack() }
             )
         }
 
         composable<ScreenNavRoute.BookMarks> {
             ScreenBookmarks(
                 onArticleClick = { articleUrl ->
-                    navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
+                    navController.safeNavigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
                 }
             )
         }
@@ -74,10 +78,36 @@ fun NavigationSetup()
         composable<ScreenNavRoute.NewsList> {
             ScreenNewsList(
                 onArticleClick = { articleUrl ->
-                    navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
+                    navController.safeNavigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
                 }
             )
         }
 
+    }
+}
+
+
+fun NavController.safePopBackStack(): Boolean {
+    val currentEntry = currentBackStackEntry ?: return false
+    return if (currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+        popBackStack()
+    } else {
+        false
+    }
+}
+
+
+fun <T : Any> NavController.safeNavigate(
+    route: T,
+    builder: (NavOptionsBuilder.() -> Unit)? = null
+) {
+    val currentEntry = currentBackStackEntry
+    // Check if the current destination has finished any ongoing transitions
+    if (currentEntry == null || currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+        if (builder != null) {
+            navigate(route, builder)
+        } else {
+            navigate(route)
+        }
     }
 }

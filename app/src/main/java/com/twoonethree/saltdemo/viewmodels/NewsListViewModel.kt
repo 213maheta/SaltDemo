@@ -117,7 +117,7 @@ class NewsListViewModel(
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
-                            error = result.error.message ?: "Failed to fetch headlines"
+                            error = result.message ?: "Failed to fetch headlines"
                         )
                     }
                 }

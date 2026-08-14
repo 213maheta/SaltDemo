@@ -1,5 +1,6 @@
 package com.twoonethree.saltdemo.data.repository
 
+
 import com.twoonethree.saltdemo.data.local.db.ArticleDao
 import com.twoonethree.saltdemo.data.mapper.toDomain
 import com.twoonethree.saltdemo.data.mapper.toEntity
@@ -16,17 +17,32 @@ class NewsRepository(
     private val articleDao: ArticleDao
 ) {
 
-    suspend fun fetchTopHeadlines(
-        category: String,
-        page: Int
-    ): NetworkResult<Int> {
+    suspend fun fetchTopHeadlines(category: String, page: Int): NetworkResult<Int> {
         val result = ApiCaller.safeApiCall {
             newsApi.getTopHeadlines(category = category, page = page)
         }
 
         return when (result) {
             is NetworkResult.Success -> {
-                val entities = result.data.articles.map { it.toEntity(category) }
+                // 1. Fetch currently bookmarked article URLs from Room
+                val bookmarkedUrls = articleDao.getBookmarkedArticles()
+                    .first()
+                    .map { it.url }
+                    .toSet()
+
+                // 2. Map DTOs to Entities, preserving bookmark state
+                val entities = result.data.articles.map { dto ->
+                    dto.toEntity(category).copy(
+                        isBookmarked = bookmarkedUrls.contains(dto.url)
+                    )
+                }
+
+                // 3. If refreshing page 1, clear unbookmarked cached articles first
+                if (page == 1) {
+                    articleDao.clearCategoryCache(category)
+                }
+
+                // 4. Save fresh batch into Room
                 articleDao.insertArticles(entities)
                 NetworkResult.Success(entities.size)
             }
@@ -38,19 +54,24 @@ class NewsRepository(
         val result = ApiCaller.safeApiCall {
             newsApi.searchArticles(query = query, page = page)
         }
+
         return when (result) {
             is NetworkResult.Success -> {
-                val entities = result.data.articles.map { it.toEntity("search") }
+                val bookmarkedUrls = articleDao.getBookmarkedArticles()
+                    .first()
+                    .map { it.url }
+                    .toSet()
 
-                // Insert search results into Room so observeArticleByUrl finds them!
-                articleDao.insertArticles(entities)
-
-                val bookmarkedUrls = articleDao.getBookmarkedArticles().first().map { it.url }.toSet()
-                val domainArticles = entities.map { entity ->
-                    entity.toDomain().copy(
-                        isBookmarked = bookmarkedUrls.contains(entity.url)
+                val entities = result.data.articles.map { dto ->
+                    dto.toEntity("search").copy(
+                        isBookmarked = bookmarkedUrls.contains(dto.url)
                     )
                 }
+
+                // Persist search articles so detail screen can load them immediately
+                articleDao.insertArticles(entities)
+
+                val domainArticles = entities.map { it.toDomain() }
                 NetworkResult.Success(domainArticles)
             }
             is NetworkResult.Failure -> result
@@ -69,17 +90,11 @@ class NewsRepository(
         }
     }
 
-    suspend fun toggleBookmark(url: String, bookmarked: Boolean) {
-        articleDao.setBookmarked(url, bookmarked)
+    suspend fun toggleBookmark(url: String, isBookmarked: Boolean) {
+        articleDao.setBookmarked(url, isBookmarked)
     }
 
     fun observeArticleByUrl(url: String): Flow<Article?> {
         return articleDao.observeArticleByUrl(url).map { it?.toDomain() }
-    }
-
-    fun searchArticlesLocal(query: String): Flow<List<Article>> {
-        return articleDao.searchArticles(query).map { list ->
-            list.map { it.toDomain() }
-        }
     }
 }

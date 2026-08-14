@@ -6,144 +6,145 @@ import com.twoonethree.saltdemo.model.Article
 import com.twoonethree.saltdemo.network.NetworkResult
 import com.twoonethree.saltdemo.repository.NewsRepository
 import com.twoonethree.saltdemo.room.NewsCategory
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-
-
-sealed class UiEvent {
-    data class ShowToast(val message: String) : UiEvent()
-}
-
 data class NewsListUiState(
     val articles: List<Article> = emptyList(),
+    val searchResults: List<Article> = emptyList(),
+    val searchQuery: String = "",
+    val isSearchActive: Boolean = false,
+    val isSearching: Boolean = false,
+    val selectedCategory: NewsCategory = NewsCategory.GENERAL,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
-    val error: String? = null,
-    val selectedCategory: NewsCategory = NewsCategory.GENERAL,
-    val currentPage: Int = 1,
     val endReached: Boolean = false,
-    // Search
-    val searchQuery: String = "",
-    val searchResults: List<Article> = emptyList(),
-    val isSearchActive: Boolean = false   // true whenever query is non-blank
+    val error: String? = null
 )
 
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class NewsListViewModel(
-    private val repository: NewsRepository
+    private val newsRepository: NewsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NewsListUiState())
     val uiState: StateFlow<NewsListUiState> = _uiState.asStateFlow()
 
-    private val _uiEvent = MutableSharedFlow<UiEvent>()
-    val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
-
-    // Drives the debounced search — separate from uiState so debounce doesn't
-    // get re-triggered by unrelated state changes (e.g. pagination updates)
     private val searchQueryFlow = MutableStateFlow("")
+    private var currentPage = 1
 
     init {
-        observeArticles()
-        observeSearch()
-        fetchHeadlines()
-    }
-
-    private fun observeArticles() {
+        // Observe headlines for selected category
         viewModelScope.launch {
-            _uiState.map { it.selectedCategory }
+            _uiState
+                .map { it.selectedCategory }
                 .distinctUntilChanged()
                 .flatMapLatest { category ->
-                    repository.observeArticlesByCategory(category.apiValue)
+                    newsRepository.observeArticlesByCategory(category.name.lowercase())
                 }
                 .collect { articles ->
                     _uiState.update { it.copy(articles = articles) }
                 }
         }
-    }
 
-    @OptIn(FlowPreview::class)
-    private fun observeSearch() {
+        // Debounced Search Flow (500ms)
         viewModelScope.launch {
             searchQueryFlow
-                .debounce(300)
+                .debounce(500L)
                 .distinctUntilChanged()
-                .flatMapLatest { query ->
-                    val trimmed = query.trim()
-                    if (trimmed.isEmpty()) {
-                        flowOf(emptyList())
+                .collectLatest { query ->
+                    if (query.isBlank()) {
+                        _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
                     } else {
-                        repository.searchArticles(trimmed)
+                        performRemoteSearch(query)
                     }
                 }
-                .collect { results ->
-                    _uiState.update { it.copy(searchResults = results) }
-                }
         }
+
+        fetchHeadlines()
     }
 
     fun onSearchQueryChanged(query: String) {
-        _uiState.update {
-            it.copy(searchQuery = query, isSearchActive = query.isNotBlank())
-        }
+        _uiState.update { it.copy(searchQuery = query, isSearchActive = query.isNotBlank()) }
         searchQueryFlow.value = query
     }
 
     fun onClearSearch() {
-        _uiState.update {
-            it.copy(searchQuery = "", searchResults = emptyList(), isSearchActive = false)
-        }
+        _uiState.update { it.copy(searchQuery = "", isSearchActive = false, searchResults = emptyList()) }
         searchQueryFlow.value = ""
     }
 
-    fun onCategorySelected(category: NewsCategory) {
-        _uiState.update {
-            it.copy(selectedCategory = category, currentPage = 1, endReached = false)
+    private suspend fun performRemoteSearch(query: String) {
+        _uiState.update { it.copy(isSearching = true) }
+        when (val result = newsRepository.searchArticlesRemote(query)) {
+            is NetworkResult.Success -> {
+                _uiState.update { it.copy(searchResults = result.data, isSearching = false) }
+            }
+            is NetworkResult.Failure -> {
+                _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            }
         }
-        fetchHeadlines()
     }
 
     fun fetchHeadlines(loadMore: Boolean = false) {
-        val state = _uiState.value
-        if (state.isLoading || state.isLoadingMore) return
-        if (loadMore && state.endReached) return
+        if (_uiState.value.isLoading || _uiState.value.isLoadingMore || (loadMore && _uiState.value.endReached)) return
 
         viewModelScope.launch {
-            val page = if (loadMore) state.currentPage + 1 else 1
-
-            _uiState.update {
-                if (loadMore) it.copy(isLoadingMore = true, error = null)
-                else it.copy(isLoading = true, error = null)
+            if (loadMore) {
+                _uiState.update { it.copy(isLoadingMore = true, error = null) }
+                currentPage++
+            } else {
+                currentPage = 1
+                _uiState.update { it.copy(isLoading = true, error = null, endReached = false) }
             }
 
-            when (val result = repository.fetchTopHeadlines(
-                category = state.selectedCategory.apiValue,
-                page = page
-            )) {
+            val category = _uiState.value.selectedCategory.name.lowercase()
+            when (val result = newsRepository.fetchTopHeadlines(category, currentPage)) {
                 is NetworkResult.Success -> {
+                    val count = result.data
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
-                            currentPage = page,
-                            endReached = result.data == 0
+                            endReached = count == 0
                         )
                     }
                 }
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        it.copy(isLoading = false, isLoadingMore = false, error = result.error.message)
+                        it.copy(
+                            isLoading = false,
+                            isLoadingMore = false,
+                            error = result.error.message ?: "Failed to fetch headlines"
+                        )
                     }
-                    _uiEvent.emit(UiEvent.ShowToast(result.error.message))
                 }
             }
         }
     }
 
+    fun onCategorySelected(category: NewsCategory) {
+        if (_uiState.value.selectedCategory != category) {
+            _uiState.update { it.copy(selectedCategory = category) }
+            fetchHeadlines()
+        }
+    }
+
     fun onBookmarkClick(article: Article) {
         viewModelScope.launch {
-            repository.toggleBookmark(article.url, !article.isBookmarked)
+            newsRepository.toggleBookmark(article.url, !article.isBookmarked)
+            // Update search results list bookmark status locally if search is active
+            if (_uiState.value.isSearchActive) {
+                _uiState.update { state ->
+                    state.copy(
+                        searchResults = state.searchResults.map {
+                            if (it.url == article.url) it.copy(isBookmarked = !article.isBookmarked) else it
+                        }
+                    )
+                }
+            }
         }
     }
 }

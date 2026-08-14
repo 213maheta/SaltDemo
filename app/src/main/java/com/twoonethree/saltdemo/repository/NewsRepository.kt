@@ -8,6 +8,7 @@ import com.twoonethree.saltdemo.network.ApiCaller
 import com.twoonethree.saltdemo.network.NetworkResult
 import com.twoonethree.saltdemo.room.ArticleDao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class NewsRepository(
@@ -34,6 +35,29 @@ class NewsRepository(
         }
     }
 
+    // Remote Search: Fetches from API & checks against local DB to maintain bookmark flags
+    // Remote Search in NewsRepository.kt
+    suspend fun searchArticlesRemote(query: String, page: Int = 1): NetworkResult<List<Article>> {
+        val result = ApiCaller.safeApiCall {
+            newsApi.searchArticles(query = query, page = page)
+        }
+
+        return when (result) {
+            is NetworkResult.Success -> {
+                val bookmarkedUrls = articleDao.getBookmarkedArticles().first().map { it.url }.toSet()
+
+                // Convert DTO -> Entity -> Domain
+                val domainArticles = result.data.articles.mapNotNull { dto ->
+                    dto.toEntity("search").toDomain()?.copy(
+                        isBookmarked = bookmarkedUrls.contains(dto.url)
+                    )
+                }
+                NetworkResult.Success(domainArticles)
+            }
+            is NetworkResult.Failure -> result
+        }
+    }
+
     fun observeArticlesByCategory(category: String): Flow<List<Article>> {
         return articleDao.getArticlesByCategory(category).map { list ->
             list.map { it.toDomain() }
@@ -54,8 +78,8 @@ class NewsRepository(
         return articleDao.observeArticleByUrl(url).map { it?.toDomain() }
     }
 
-    // NewsRepository.kt — add this method
-    fun searchArticles(query: String): Flow<List<Article>> {
+    // Local offline search
+    fun searchArticlesLocal(query: String): Flow<List<Article>> {
         return articleDao.searchArticles(query).map { list ->
             list.map { it.toDomain() }
         }

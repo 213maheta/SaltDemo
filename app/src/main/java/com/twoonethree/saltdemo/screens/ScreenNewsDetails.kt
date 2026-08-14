@@ -1,9 +1,11 @@
 package com.twoonethree.saltdemo.screens
 
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,6 +38,7 @@ fun ScreenNewsDetail(
                 title = {
                     Text(
                         text = article?.sourceName ?: "Article",
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1
                     )
                 },
@@ -49,7 +52,8 @@ fun ScreenNewsDetail(
                         IconButton(onClick = { viewModel.toggleBookmark() }) {
                             Icon(
                                 imageVector = if (currentArticle.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "Bookmark"
+                                contentDescription = "Bookmark",
+                                tint = if (currentArticle.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
@@ -70,7 +74,13 @@ fun ScreenNewsDetail(
                             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in browser")
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     ) { paddingValues ->
@@ -78,6 +88,7 @@ fun ScreenNewsDetail(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             when (val currentArticle = article) {
                 null -> {
@@ -90,6 +101,7 @@ fun ScreenNewsDetail(
                         AndroidView(
                             factory = { ctx ->
                                 WebView(ctx).apply {
+                                    setBackgroundColor(AndroidColor.TRANSPARENT)
                                     settings.javaScriptEnabled = true
                                     settings.domStorageEnabled = true
                                     webViewClient = object : WebViewClient() {

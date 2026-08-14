@@ -1,5 +1,6 @@
 package com.twoonethree.saltdemo.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,14 +49,25 @@ fun ScreenNewsList(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    var isSearchExpanded by remember { mutableStateOf(false) }
+
+    // Persist search open state across back stack navigation
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // Keep search bar open if there is an active search query
+    val isSearching = isSearchExpanded || uiState.searchQuery.isNotEmpty()
+
+    // Handle system back button when search is active
+    BackHandler(enabled = isSearching) {
+        isSearchExpanded = false
+        viewModel.onClearSearch()
+    }
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo }
             .collect { layoutInfo ->
                 val totalItems = layoutInfo.totalItemsCount
                 val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                if (totalItems > 0 && lastVisibleIndex >= totalItems - 3 && !uiState.isLoadingMore) {
+                if (totalItems > 0 && lastVisibleIndex >= totalItems - 3 && !uiState.isLoadingMore && !uiState.isSearchActive) {
                     viewModel.fetchHeadlines(loadMore = true)
                 }
             }
@@ -62,7 +75,7 @@ fun ScreenNewsList(
 
     Column(modifier = modifier.fillMaxSize()) {
         NewsTopAppBar(
-            isSearchExpanded = isSearchExpanded,
+            isSearchExpanded = isSearching,
             searchQuery = uiState.searchQuery,
             onSearchQueryChange = viewModel::onSearchQueryChanged,
             onOpenSearch = { isSearchExpanded = true },
@@ -73,7 +86,7 @@ fun ScreenNewsList(
         )
 
         AnimatedVisibility(
-            visible = !uiState.isSearchActive && !isSearchExpanded,
+            visible = !uiState.isSearchActive && !isSearching,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
@@ -88,10 +101,11 @@ fun ScreenNewsList(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            if (uiState.isSearchActive || (isSearchExpanded && uiState.searchQuery.isNotEmpty())) {
+            if (uiState.isSearchActive || (isSearching && uiState.searchQuery.isNotEmpty())) {
                 SearchResultsContent(
                     results = uiState.searchResults,
                     query = uiState.searchQuery,
+                    isSearching = uiState.isSearching,
                     onArticleClick = onArticleClick,
                     onBookmarkClick = viewModel::onBookmarkClick
                 )
@@ -126,7 +140,7 @@ private fun NewsTopAppBar(
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(isSearchExpanded) {
-        if (isSearchExpanded) {
+        if (isSearchExpanded && searchQuery.isEmpty()) {
             focusRequester.requestFocus()
         }
     }
@@ -188,6 +202,51 @@ private fun NewsTopAppBar(
             containerColor = MaterialTheme.colorScheme.surface
         )
     )
+}
+
+@Composable
+private fun SearchResultsContent(
+    results: List<Article>,
+    query: String,
+    isSearching: Boolean,
+    onArticleClick: (String) -> Unit,
+    onBookmarkClick: (Article) -> Unit
+) {
+    if (isSearching) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (results.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.SearchOff,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "No results for \"$query\"",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(results, key = { it.url }) { article ->
+                ArticleCard(
+                    article = article,
+                    onClick = { onArticleClick(article.url) },
+                    onBookmarkClick = { onBookmarkClick(article) }
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -336,46 +395,6 @@ private fun CategoryChipsRow(
                 onClick = { onCategorySelected(category) },
                 label = { Text(category.displayName, style = MaterialTheme.typography.labelLarge) }
             )
-        }
-    }
-}
-
-@Composable
-private fun SearchResultsContent(
-    results: List<Article>,
-    query: String,
-    onArticleClick: (String) -> Unit,
-    onBookmarkClick: (Article) -> Unit
-) {
-    if (results.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.SearchOff,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "No results for \"$query\"",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    } else {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(results, key = { it.url }) { article ->
-                ArticleCard(
-                    article = article,
-                    onClick = { onArticleClick(article.url) },
-                    onBookmarkClick = { onBookmarkClick(article) }
-                )
-            }
         }
     }
 }

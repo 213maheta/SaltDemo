@@ -32,6 +32,9 @@ fun ScreenNewsDetail(
     val article by viewModel.article.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // Fallback to ViewModel's decoded URL if database entity isn't loaded yet
+    val currentUrl = article?.url ?: viewModel.decodedUrl
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -48,79 +51,65 @@ fun ScreenNewsDetail(
                     }
                 },
                 actions = {
-                    article?.let { currentArticle ->
-                        IconButton(onClick = { viewModel.toggleBookmark() }) {
-                            Icon(
-                                imageVector = if (currentArticle.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "Bookmark",
-                                tint = if (currentArticle.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    IconButton(onClick = { viewModel.toggleBookmark() }) {
+                        Icon(
+                            imageVector = if (article?.isBookmarked == true) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = "Bookmark",
+                            tint = if (article?.isBookmarked == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-                        IconButton(onClick = {
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "${currentArticle.title}\n${currentArticle.url}")
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share article"))
-                        }) {
-                            Icon(Icons.Default.Share, contentDescription = "Share")
+                    IconButton(onClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "${article?.title ?: "Article"}\n$currentUrl")
                         }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share article"))
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = "Share")
+                    }
 
-                        IconButton(onClick = {
-                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(currentArticle.url))
-                            context.startActivity(browserIntent)
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in browser")
-                        }
+                    IconButton(onClick = {
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
+                        context.startActivity(browserIntent)
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in browser")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
     ) { paddingValues ->
+        var isWebViewLoading by remember { mutableStateOf(true) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            when (val currentArticle = article) {
-                null -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-                else -> {
-                    var isLoading by remember { mutableStateOf(true) }
-
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AndroidView(
-                            factory = { ctx ->
-                                WebView(ctx).apply {
-                                    setBackgroundColor(AndroidColor.TRANSPARENT)
-                                    settings.javaScriptEnabled = true
-                                    settings.domStorageEnabled = true
-                                    webViewClient = object : WebViewClient() {
-                                        override fun onPageFinished(view: WebView?, url: String?) {
-                                            super.onPageFinished(view, url)
-                                            isLoading = false
-                                        }
-                                    }
-                                    loadUrl(currentArticle.url)
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        setBackgroundColor(AndroidColor.TRANSPARENT)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isWebViewLoading = false
+                            }
                         }
+                        loadUrl(currentUrl)
                     }
-                }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            if (isWebViewLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
     }

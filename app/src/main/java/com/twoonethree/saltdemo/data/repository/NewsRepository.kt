@@ -38,14 +38,17 @@ class NewsRepository(
         val result = ApiCaller.safeApiCall {
             newsApi.searchArticles(query = query, page = page)
         }
-
         return when (result) {
             is NetworkResult.Success -> {
-                val bookmarkedUrls = articleDao.getBookmarkedArticles().first().map { it.url }.toSet()
+                val entities = result.data.articles.map { it.toEntity("search") }
 
-                val domainArticles = result.data.articles.mapNotNull { dto ->
-                    dto.toEntity("search").toDomain().copy(
-                        isBookmarked = bookmarkedUrls.contains(dto.url)
+                // Insert search results into Room so observeArticleByUrl finds them!
+                articleDao.insertArticles(entities)
+
+                val bookmarkedUrls = articleDao.getBookmarkedArticles().first().map { it.url }.toSet()
+                val domainArticles = entities.map { entity ->
+                    entity.toDomain().copy(
+                        isBookmarked = bookmarkedUrls.contains(entity.url)
                     )
                 }
                 NetworkResult.Success(domainArticles)

@@ -10,6 +10,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.twoonethree.saltdemo.screens.ScreenBookmarks
+import com.twoonethree.saltdemo.screens.ScreenHome
 import com.twoonethree.saltdemo.screens.ScreenNewsDetail
 import com.twoonethree.saltdemo.screens.ScreenNewsList
 
@@ -49,7 +50,7 @@ fun NavigationSetup()
         }
     ) {
         composable<ScreenNavRoute.Home> {
-            ScreenNewsList(
+            ScreenHome(
                 onArticleClick = { articleUrl ->
                     navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
                 }
@@ -64,6 +65,14 @@ fun NavigationSetup()
 
         composable<ScreenNavRoute.BookMarks> {
             ScreenBookmarks(
+                onArticleClick = { articleUrl ->
+                    navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
+                }
+            )
+        }
+
+        composable<ScreenNavRoute.NewsList> {
+            ScreenNewsList(
                 onArticleClick = { articleUrl ->
                     navController.navigate(ScreenNavRoute.NewsDetail(articleUrl = articleUrl))
                 }

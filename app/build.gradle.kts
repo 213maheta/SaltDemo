@@ -23,6 +23,15 @@ android {
         }
     }
 
+    signingConfigs {
+        create("signing_config") {
+            keyAlias = "key0"
+            keyPassword = "123456"
+            storePassword = "123456"
+            storeFile = file("Untitled.jks")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.twoonethree.saltdemo"
         minSdk = 24
@@ -41,11 +50,22 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+
+            signingConfig = signingConfigs.getByName("signing_config")
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21

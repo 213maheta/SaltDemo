@@ -3,9 +3,9 @@ package com.twoonethree.saltdemo.worker
 import android.content.Context
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
-import com.twoonethree.saltdemo.network.NetworkError
-import com.twoonethree.saltdemo.network.NetworkResult
-import com.twoonethree.saltdemo.repository.NewsRepository
+import com.twoonethree.saltdemo.data.remote.network.NetworkError
+import com.twoonethree.saltdemo.data.remote.network.NetworkResult
+import com.twoonethree.saltdemo.data.repository.NewsRepository
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -31,7 +31,6 @@ class NewsSyncWorkerTest {
                 newsRepository = newsRepository
             )
         )
-        // Stub the notification method to avoid Android SDK crashes on JVM
         every { worker.showBreakingNewsNotification() } just Runs
     }
 

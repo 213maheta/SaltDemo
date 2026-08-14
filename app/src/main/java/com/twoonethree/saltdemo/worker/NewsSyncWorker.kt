@@ -13,8 +13,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.twoonethree.saltdemo.network.NetworkResult
-import com.twoonethree.saltdemo.repository.NewsRepository
+import com.twoonethree.saltdemo.data.remote.network.NetworkResult
+import com.twoonethree.saltdemo.data.repository.NewsRepository
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 

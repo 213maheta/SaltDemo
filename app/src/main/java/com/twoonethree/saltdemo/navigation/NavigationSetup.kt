@@ -12,6 +12,7 @@ import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navDeepLink
 import androidx.navigation.navOptions
 import com.twoonethree.saltdemo.screens.ScreenBookmarks
 import com.twoonethree.saltdemo.screens.ScreenHome
@@ -61,7 +62,16 @@ fun NavigationSetup()
             )
         }
 
-        composable<ScreenNavRoute.NewsDetail> {
+        composable<ScreenNavRoute.NewsDetail>(
+            deepLinks = listOf(
+                navDeepLink<ScreenNavRoute.NewsDetail>(
+                    basePath = "newsapp://article"
+                ),
+                navDeepLink<ScreenNavRoute.NewsDetail>(
+                    basePath = "https://saltdemo.com/article"
+                )
+            )
+        ) {
             ScreenNewsDetail(
                 onBackClick = { navController.safePopBackStack() }
             )
